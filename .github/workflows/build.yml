@@ -3,6 +3,9 @@ name: Build BROM Port + UN1CA & ExtremeROM
 on:
   workflow_dispatch:
 
+permissions:
+  contents: write
+
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
   cancel-in-progress: true
@@ -140,7 +143,7 @@ jobs:
             fi
           done
 
-      - name: Repack Images & Create Final ZIP
+      - name: Repack Images & Split Final ZIP
         run: |
           cd work
           for part in system product system_ext; do
@@ -152,8 +155,21 @@ jobs:
           cd rom_extracted
           zip -r0 ../out/BROM_v1.5_a04_UN1CA_ExtremeROM.zip ./*
 
-      - name: Upload to Pixeldrain
-        run: |
-          curl -T "work/out/BROM_v1.5_a04_UN1CA_ExtremeROM.zip" \
-          -u :${{ secrets.PIXELDRAIN_API_KEY }} \
-          https://pixeldrain.com/api/file/
+          cd ../out
+          split -b 1500m -d -a 2 "BROM_v1.5_a04_UN1CA_ExtremeROM.zip" "BROM_v1.5_a04_UN1CA_ExtremeROM.zip.part"
+          rm -f "BROM_v1.5_a04_UN1CA_ExtremeROM.zip"
+          sha256sum BROM_v1.5_a04_UN1CA_ExtremeROM.zip.part* > SHA256SUMS.txt
+          ls -lh
+
+      - name: Upload Split ROM to GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: brom-a04-${{ github.run_number }}
+          name: BROM v1.5 A04 (UN1CA + ExtremeROM) - Build #${{ github.run_number }}
+          files: |
+            work/out/BROM_v1.5_a04_UN1CA_ExtremeROM.zip.part*
+            work/out/SHA256SUMS.txt
+          draft: false
+          prerelease: false
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
